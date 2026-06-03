@@ -10,6 +10,9 @@
 
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
 export type Quadrant = 'q1' | 'q2' | 'q3' | 'q4';
+// 'tag'  — only checkbox lines carrying #task count as tasks (default).
+// 'open' — every checkbox line counts, with or without #task.
+export type DetectionMode = 'tag' | 'open';
 
 export const STATUS_TO_CHAR: Record<TaskStatus, string> = {
   pending: ' ',
@@ -74,7 +77,11 @@ export interface MutationResult {
 // Naive OFM-aware: skips frontmatter and fenced code blocks. Inline code
 // spans, %%comments%%, wikilink-target #task occurrences, indented code
 // blocks — known Phase-2 gaps per the spec, intentionally not handled here.
-export function parseTasksFromText(filePath: string, text: string): Task[] {
+export function parseTasksFromText(
+  filePath: string,
+  text: string,
+  detectionMode: DetectionMode = 'tag',
+): Task[] {
   const tasks: Task[] = [];
   const lines = text.split('\n');
   let inFrontmatter = false;
@@ -112,7 +119,9 @@ export function parseTasksFromText(filePath: string, text: string): Task[] {
     const checkChar = match[3];
     const body = match[4];
 
-    if (!HAS_TASK_TAG_RE.test(body)) continue;
+    // Detection: in 'open' mode any checkbox line qualifies; in 'tag' mode
+    // (default) it must carry #task. The line already matched a checkbox.
+    if (detectionMode !== 'open' && !HAS_TASK_TAG_RE.test(body)) continue;
 
     const blockMatch = body.match(BLOCK_ID_RE);
     const blockId = blockMatch ? blockMatch[1] : null;
@@ -234,4 +243,47 @@ export function mutateArchive(
     : stripped.replace(/\s+$/, '') + ' #tm/archived';
 
   return { line: updated, conflict: false };
+}
+
+// ── mutateTaskText ─────────────────────────────────────────────────────────
+// Rewrite a task's human-readable body while preserving the list-marker +
+// checkbox prefix and the trailing block ID. Any block ID the user typed into
+// the new text is stripped (the source owns `^task-…`); newlines collapse to
+// spaces; empty text is rejected (returns line=null, conflict=false — nothing
+// to write, but not a conflict). Tags (#task, #tm/qN, …) live in the body and
+// ride along — they're re-derived on the next parse. Conflict-checked on
+// identity like the other mutators. (Reviewer H1.)
+export function mutateTaskText(
+  line: string | null | undefined,
+  expectedRawLine: string,
+  newText: string,
+): MutationResult {
+  if (line === undefined || line === null) return { line, conflict: true };
+  if (line !== expectedRawLine) return { line, conflict: true };
+
+  const cleaned = String(newText).replace(/\r\n|\r|\n/g, ' ').trim();
+  if (!cleaned) return { line: null, conflict: false };
+  const userStripped = cleaned.replace(/\s+\^[a-zA-Z0-9_-]+\s*$/, '').trim();
+  if (!userStripped) return { line: null, conflict: false };
+
+  let prefix: string;
+  let rest: string;
+  const checkMatch = line.match(/^(\s*[-*+]\s+\[[ xX\/\-]\]\s+)([\s\S]*)$/);
+  if (checkMatch) {
+    prefix = checkMatch[1];
+    rest = checkMatch[2];
+  } else {
+    const listMatch = line.match(/^(\s*[-*+]\s+)([\s\S]*)$/);
+    if (listMatch) {
+      prefix = listMatch[1];
+      rest = listMatch[2];
+    } else {
+      const lead = line.match(/^(\s*)([\s\S]*)$/);
+      prefix = lead ? lead[1] : '';
+      rest = lead ? lead[2] : line;
+    }
+  }
+  const tail = rest.match(/(\s+\^[a-zA-Z0-9_-]+)\s*$/);
+  const blockSuffix = tail ? tail[1] : '';
+  return { line: prefix + userStripped + blockSuffix, conflict: false };
 }

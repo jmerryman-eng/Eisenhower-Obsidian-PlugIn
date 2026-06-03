@@ -7,7 +7,7 @@
 // (or any external tool) can manipulate tasks via standard file edits and
 // the matrix updates automatically through vault.on('modify').
 
-import { App, ItemView, Modal, Notice, Plugin, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
+import { App, ItemView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
 import {
   STATUS_TO_CHAR,
   STATUS_CYCLE,
@@ -17,12 +17,24 @@ import {
   rewriteQuadrantInLine,
   rewriteCheckboxInLine,
   mutateArchive,
+  mutateTaskText,
   Task,
   TaskStatus,
   Quadrant,
+  DetectionMode,
 } from './parser';
 
-const BACKLOG_PATH = 'Task Backlog.md';
+const DEFAULT_BACKLOG_PATH = 'Task Backlog.md';
+
+interface TaskMatrixSettings {
+  detectionMode: DetectionMode;
+  backlogPath: string;
+}
+
+const DEFAULT_SETTINGS: TaskMatrixSettings = {
+  detectionMode: 'tag',
+  backlogPath: DEFAULT_BACKLOG_PATH,
+};
 
 const VIEW_TYPE = 'task-matrix-view';
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -63,9 +75,13 @@ const ICON_FILE = 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm0 
 export default class TaskMatrixPlugin extends Plugin {
   tasks: Map<string, Task> = new Map();   // id → task record (includes quadrant)
   views: Set<MatrixView> = new Set();      // active MatrixView instances
+  settings: TaskMatrixSettings = { ...DEFAULT_SETTINGS };
 
   async onload(): Promise<void> {
+    await this.loadSettings();
+
     this.registerView(VIEW_TYPE, (leaf) => new MatrixView(leaf, this));
+    this.addSettingTab(new TaskMatrixSettingTab(this.app, this));
 
     this.addRibbonIcon('layout-grid', 'Open task matrix', () => this.activateView());
     this.addRibbonIcon('plus', 'Add task to backlog', () => this.openAddTaskModal());
@@ -173,9 +189,17 @@ export default class TaskMatrixPlugin extends Plugin {
   }
 
   parseFileText(filePath: string, text: string): void {
-    for (const task of parseTasksFromText(filePath, text)) {
+    for (const task of parseTasksFromText(filePath, text, this.settings.detectionMode)) {
       this.tasks.set(task.id, task);
     }
+  }
+
+  async loadSettings(): Promise<void> {
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+  }
+
+  async saveSettings(): Promise<void> {
+    await this.saveData(this.settings);
   }
 
   // ─── writeback ──────────────────────────────────────────────────────────
@@ -370,6 +394,51 @@ export default class TaskMatrixPlugin extends Plugin {
     return archived;
   }
 
+  // ─── inline text edit ───────────────────────────────────────────────────
+  // Rewrite a task's body text in place, preserving the checkbox prefix and
+  // trailing block ID (see mutateTaskText). Conflict-checked; empty text is
+  // rejected without writing.
+  async editTaskText(taskId: string, newText: string): Promise<void> {
+    const task = this.tasks.get(taskId);
+    if (!task) return;
+    const file = this.app.vault.getAbstractFileByPath(task.file);
+    if (!(file instanceof TFile)) return;
+
+    let conflict = false;
+    let invalid = false;
+    let newRawLine: string | null = null;
+    try {
+      await this.app.vault.process(file, (text) => {
+        const lines = text.split('\n');
+        const result = mutateTaskText(lines[task.lineNumber], task.rawLine, newText);
+        if (result.conflict) { conflict = true; return text; }
+        if (result.line === null || result.line === undefined) { invalid = true; return text; }
+        lines[task.lineNumber] = result.line;
+        newRawLine = result.line;
+        return lines.join('\n');
+      });
+    } catch (err) {
+      new Notice(`TaskMatrix: failed to edit task — ${errMessage(err)}`);
+      return;
+    }
+
+    if (conflict) {
+      new Notice('TaskMatrix: file changed underneath — rescanning.');
+      await this.refreshFile(file);
+      return;
+    }
+    if (invalid) {
+      new Notice('TaskMatrix: task text cannot be empty.');
+      this.notify();
+      return;
+    }
+
+    if (newRawLine !== null) task.rawLine = newRawLine;
+    // The vault.process write fires a 'modify' event → refreshFile re-parses
+    // and reconciles task.text; notify now so any open editor closes promptly.
+    this.notify();
+  }
+
   // ─── creation ─────────────────────────────────────────────────────────
   // Append a new pending task to the backlog note, creating the note if it
   // doesn't exist. The vault.on('create'/'modify') listeners refresh the
@@ -379,12 +448,13 @@ export default class TaskMatrixPlugin extends Plugin {
     const cleaned = text.replace(/\r\n|\r|\n/g, ' ').trim();
     if (!cleaned) return;
 
-    let file = this.app.vault.getAbstractFileByPath(BACKLOG_PATH);
+    const path = this.settings.backlogPath || DEFAULT_BACKLOG_PATH;
+    let file = this.app.vault.getAbstractFileByPath(path);
     if (!file) {
       try {
-        file = await this.app.vault.create(BACKLOG_PATH, '# Task Backlog\n\n');
+        file = await this.app.vault.create(path, '# Task Backlog\n\n');
       } catch (err) {
-        new Notice(`TaskMatrix: couldn't create ${BACKLOG_PATH} — ${errMessage(err)}`);
+        new Notice(`TaskMatrix: couldn't create ${path} — ${errMessage(err)}`);
         return;
       }
     }
@@ -399,7 +469,7 @@ export default class TaskMatrixPlugin extends Plugin {
       new Notice(`TaskMatrix: failed to add task — ${errMessage(err)}`);
       return;
     }
-    new Notice(`TaskMatrix: added to ${BACKLOG_PATH}.`);
+    new Notice(`TaskMatrix: added to ${path}.`);
   }
 
   openAddTaskModal(): void {
@@ -635,6 +705,17 @@ class MatrixView extends ItemView {
       leaf.openFile(file, eState ? { eState } : undefined);
     });
 
+    // Double-click a card's text to edit it inline.
+    this.registerDomEvent(root, 'dblclick', (e) => {
+      const target = e.target as HTMLElement;
+      const textEl = target.closest('.task-text') as HTMLElement | null;
+      if (!textEl) return;
+      const card = textEl.closest('.task') as HTMLElement | null;
+      if (!card) return;
+      e.preventDefault();
+      this.beginInlineEdit(card, textEl, card.dataset.id as string);
+    });
+
     // Drag and drop. Cards are draggable; quads and backlog are drop targets.
     // Backlog is grouped by file and not manually orderable; within a quad,
     // placement is a single markdown tag so order isn't tracked in v1.
@@ -783,6 +864,44 @@ class MatrixView extends ItemView {
         for (const t of items) group.appendChild(this.buildCard(t));
       }
     }
+  }
+
+  // Swap a card's text for a textarea. Commit on Enter or blur, cancel on
+  // Escape. The card is non-draggable while editing so a stray drag can't
+  // tear out the field. A successful commit triggers a re-render via the
+  // write's modify event; cancel/no-op restores the display directly.
+  beginInlineEdit(card: HTMLElement, textEl: HTMLElement, id: string): void {
+    const task = this.plugin.tasks.get(id);
+    if (!task) return;
+    if (textEl.querySelector('textarea')) return; // already editing
+
+    const original = task.text;
+    textEl.empty();
+    const textarea = textEl.createEl('textarea', { cls: 'tm-edit-textarea' });
+    textarea.value = original;
+    card.draggable = false;
+
+    let done = false;
+    const finish = (commit: boolean): void => {
+      if (done) return;
+      done = true;
+      card.draggable = true;
+      const value = textarea.value;
+      if (commit && value.trim() && value.trim() !== original.trim()) {
+        this.plugin.editTaskText(id, value);
+        return; // re-render arrives from the write / modify event
+      }
+      this.render(); // cancel or no-op — rebuild the card as it was
+    };
+
+    this.registerDomEvent(textarea, 'keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    this.registerDomEvent(textarea, 'blur', () => finish(true));
+
+    textarea.focus();
+    textarea.select();
   }
 
   buildCard(task: Task): HTMLElement {
@@ -955,7 +1074,7 @@ class AddTaskModal extends Modal {
 }
 
 // Confirm: a titled message with a confirm/cancel pair. Used before the
-// batch "Archive completed" action.
+// batch archive action.
 class ConfirmModal extends Modal {
   private titleText: string;
   private message: string;
@@ -984,5 +1103,44 @@ class ConfirmModal extends Modal {
 
   onClose(): void {
     this.contentEl.empty();
+  }
+}
+
+// ─── settings ─────────────────────────────────────────────────────────────
+class TaskMatrixSettingTab extends PluginSettingTab {
+  plugin: TaskMatrixPlugin;
+
+  constructor(app: App, plugin: TaskMatrixPlugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+
+  display(): void {
+    const { containerEl } = this;
+    containerEl.empty();
+
+    new Setting(containerEl)
+      .setName('Task detection')
+      .setDesc('Which checkbox lines count as tasks. "Tagged" requires a #task tag; "All checkboxes" treats every checkbox line as a task.')
+      .addDropdown((dd) => dd
+        .addOption('tag', 'Tagged with #task')
+        .addOption('open', 'All checkbox lines')
+        .setValue(this.plugin.settings.detectionMode)
+        .onChange(async (value) => {
+          this.plugin.settings.detectionMode = value as DetectionMode;
+          await this.plugin.saveSettings();
+          await this.plugin.scanVault();
+        }));
+
+    new Setting(containerEl)
+      .setName('Backlog note')
+      .setDesc('New tasks from the + button and "Add task to backlog" command are appended here. Created if it does not exist.')
+      .addText((text) => text
+        .setPlaceholder(DEFAULT_BACKLOG_PATH)
+        .setValue(this.plugin.settings.backlogPath)
+        .onChange(async (value) => {
+          this.plugin.settings.backlogPath = value.trim() || DEFAULT_BACKLOG_PATH;
+          await this.plugin.saveSettings();
+        }));
   }
 }

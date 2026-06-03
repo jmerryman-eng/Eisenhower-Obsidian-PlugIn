@@ -12,6 +12,7 @@ import {
   rewriteCheckboxInLine,
   rewriteQuadrantInLine,
   mutateArchive,
+  mutateTaskText,
 } from '../src/parser.ts';
 
 test('parseTasksFromText: detects a basic #task line', () => {
@@ -266,4 +267,65 @@ test('round-trip: an archived line is dropped on the next parse', () => {
   const after = mutateArchive(before, before).line as string;
   assert.equal(after, '- [x] done #task #tm/archived ^task-k');
   assert.equal(parseTasksFromText('a.md', after).length, 0);
+});
+
+test('detection mode: bare checkbox lines parse only in open mode', () => {
+  const text = '- [ ] no tag here\n- [ ] tagged #task';
+  const tagged = parseTasksFromText('a.md', text); // default 'tag'
+  assert.equal(tagged.length, 1);
+  assert.equal(tagged[0].text, 'tagged #task');
+
+  const open = parseTasksFromText('a.md', text, 'open');
+  assert.equal(open.length, 2);
+  assert.equal(open[0].text, 'no tag here');
+});
+
+test('detection mode: open mode still honors quadrant and archived skip', () => {
+  const text = [
+    '- [ ] placed #tm/q2',
+    '- [ ] gone #tm/archived',
+  ].join('\n');
+  const open = parseTasksFromText('a.md', text, 'open');
+  assert.equal(open.length, 1);
+  assert.equal(open[0].quadrant, 'q2');
+});
+
+test('mutateTaskText: rewrites the body, keeps checkbox prefix + block id', () => {
+  const line = '- [/] old text #task #tm/q1 ^task-abc';
+  const r = mutateTaskText(line, line, 'new text #task #tm/q1');
+  assert.equal(r.conflict, false);
+  assert.equal(r.line, '- [/] new text #task #tm/q1 ^task-abc');
+});
+
+test('mutateTaskText: strips a block id the user typed into the new text', () => {
+  const line = '- [ ] thing #task ^task-keep';
+  const r = mutateTaskText(line, line, 'renamed #task ^task-typed');
+  assert.equal(r.conflict, false);
+  assert.equal(r.line, '- [ ] renamed #task ^task-keep');
+});
+
+test('mutateTaskText: collapses newlines to spaces', () => {
+  const line = '- [ ] one #task';
+  const r = mutateTaskText(line, line, 'multi\nline\r\ntext #task');
+  assert.equal(r.conflict, false);
+  assert.equal(r.line, '- [ ] multi line text #task');
+});
+
+test('mutateTaskText: empty / whitespace text is rejected (no write, no conflict)', () => {
+  const line = '- [ ] thing #task';
+  const r = mutateTaskText(line, line, '   ');
+  assert.equal(r.conflict, false);
+  assert.equal(r.line, null);
+});
+
+test('mutateTaskText: conflict when expectedRawLine drifted (H1)', () => {
+  const r = mutateTaskText('- [ ] OTHER #task', '- [ ] thing #task', 'new');
+  assert.equal(r.conflict, true);
+});
+
+test('mutateTaskText: preserves leading indentation', () => {
+  const line = '  - [x] nested #task';
+  const r = mutateTaskText(line, line, 'edited #task');
+  assert.equal(r.conflict, false);
+  assert.equal(r.line, '  - [x] edited #task');
 });
