@@ -14,3 +14,7 @@ node_modules/
 
 # logs
 npm-debug.log*
+
+# local release-asset staging (uploaded to GitHub Releases, not tracked)
+release/
+SUBMISSION.md

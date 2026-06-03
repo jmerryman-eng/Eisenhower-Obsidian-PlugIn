@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "minAppVersion": "1.5.0",
   "description": "Eisenhower-matrix view for #task lines across your vault. Drag tasks between Do / Schedule / Delegate / Delete quadrants; status changes write back to the source markdown.",
-  "author": "TaskMatrix",
-  "authorUrl": "https://github.com/jmerryman-eng/Eisenhower-Obsidian-PlugIn",
+  "author": "jmerryman-eng",
+  "authorUrl": "https://github.com/jmerryman-eng",
   "isDesktopOnly": false
 }
