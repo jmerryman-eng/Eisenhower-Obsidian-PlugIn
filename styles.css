@@ -3,37 +3,39 @@
    that root. */
 
 /* ─── tokens ──────────────────────────────────────────────────────────
-   Black scheme to match the TaskMatrix webapp (its "stone" dark palette).
-   These render the same regardless of the active Obsidian theme. */
+   The plugin's design tokens map onto Obsidian's theme variables so the
+   matrix respects the active theme (light, dark, or custom). Hex fallbacks
+   keep it sane on themes that omit a variable. Note: we intentionally do NOT
+   redefine --text-muted — downstream rules using var(--text-muted) inherit
+   Obsidian's own value directly (redefining it would be self-referential). */
 .task-matrix-root {
-  --bg:            #0c0a09;
-  --surface:       #161412;
-  --surface-2:     #1c1917;
-  --border:        #292524;
-  --border-strong: #44403c;
-  --text:          #fafaf9;
-  --text-muted:    #a8a29e;
-  --text-subtle:   #78716c;
-  --accent:        #fafaf9;
-  --accent-on:     #0c0a09;
-  --focus:         #0a84ff;
+  --bg:            var(--background-primary);
+  --surface:       var(--background-secondary);
+  --surface-2:     var(--background-modifier-hover);
+  --border:        var(--background-modifier-border);
+  --border-strong: var(--background-modifier-border-hover, var(--background-modifier-border));
+  --text:          var(--text-normal);
+  --text-subtle:   var(--text-faint);
+  --accent:        var(--interactive-accent);
+  --accent-on:     var(--text-on-accent);
+  --focus:         var(--interactive-accent);
 
-  --q1: #dc2626;  /* Do        — urgent + important */
-  --q2: #2563eb;  /* Schedule  — not urgent + important */
-  --q3: #d97706;  /* Delegate  — urgent + not important */
-  --q4: #78716c;  /* Delete    — not urgent + not important */
+  --q1: var(--color-red, #dc2626);     /* Do        — urgent + important */
+  --q2: var(--color-blue, #2563eb);    /* Schedule  — not urgent + important */
+  --q3: var(--color-orange, #d97706);  /* Delegate  — urgent + not important */
+  --q4: var(--text-muted);             /* Delete    — not urgent + not important */
 
-  --r-sm: 6px;
-  --r-md: 8px;
-  --r-lg: 12px;
+  --r-sm: var(--radius-s, 6px);
+  --r-md: var(--radius-m, 8px);
+  --r-lg: var(--radius-l, 12px);
 
   --t: 150ms cubic-bezier(.2,.7,.2,1);
-  --shadow-sm: 0 1px 0 rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.5);
-  --shadow-md: 0 1px 2px rgba(0,0,0,.4), 0 6px 16px rgba(0,0,0,.5);
-  --shadow-drag: 0 14px 40px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.5);
+  --shadow-sm: var(--shadow-s);
+  --shadow-md: var(--shadow-l);
+  --shadow-drag: var(--shadow-l);
 
-  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font: var(--font-interface);
+  --mono: var(--font-monospace);
 }
 
 /* ─── reset ───────────────────────────────────────────────────────── */
