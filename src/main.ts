@@ -427,9 +427,9 @@ class MatrixView extends ItemView {
       leaf.openFile(file, eState ? { eState } : undefined);
     });
 
-    // Drag and drop — ported from the webapp. Cards are draggable; quads and
-    // backlog are drop targets. Within a quad we compute insertion position
-    // from pointer Y; backlog is grouped by file and not manually orderable.
+    // Drag and drop. Cards are draggable; quads and backlog are drop targets.
+    // Backlog is grouped by file and not manually orderable; within a quad,
+    // placement is a single markdown tag so order isn't tracked in v1.
     this.registerDomEvent(root, 'dragstart', (e) => {
       const target = e.target as HTMLElement;
       const card = target.closest('.task') as HTMLElement | null;

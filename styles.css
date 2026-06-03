@@ -1,6 +1,6 @@
 /* TaskMatrix plugin — all rules scoped under .task-matrix-root so the plugin
-   does not leak styles into Obsidian's global UI. Generated from the source
-   webapp's styles.css. Re-scope by hand if you change the source. */
+   does not leak styles into Obsidian's global UI. Keep new rules scoped under
+   that root. */
 
 /* ─── tokens ──────────────────────────────────────────────────────── */
 .task-matrix-root {
