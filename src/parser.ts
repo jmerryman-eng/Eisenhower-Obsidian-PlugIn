@@ -36,6 +36,8 @@ export const QUAD_TAG_RE = /^tm\/(q[1-4])$/;
 // Match a `#tm/qN` tag in a line (with leading whitespace) so we can strip it
 // when reassigning. The negative lookahead prevents matching `#tm/q1foo` etc.
 export const QUAD_TAG_INLINE_RE = /\s*#tm\/q[1-4](?![A-Za-z0-9_\/-])/g;
+// Same idea for the `#tm/archived` tag — lookahead-only (mobile-safe).
+export const ARCHIVED_TAG_INLINE_RE = /\s*#tm\/archived(?![A-Za-z0-9_\/-])/g;
 
 const TASK_LINE_RE = /^(\s*)([-*+])\s+\[([ xX\/\-])\]\s+(.+?)\s*$/;
 const HAS_TASK_TAG_RE = /(?:#task(?![A-Za-z0-9_-])|#task\/)/;
@@ -123,6 +125,11 @@ export function parseTasksFromText(filePath: string, text: string): Task[] {
     let m: RegExpExecArray | null;
     while ((m = tagRe.exec(textBody)) !== null) tags.push(m[1]);
 
+    // Archive opt-out: lines tagged #tm/archived stay in the markdown but
+    // drop out of the matrix and backlog. Bring one back by deleting the
+    // tag in Obsidian — the next parse re-includes it.
+    if (tags.includes('tm/archived')) continue;
+
     let quadrant: Quadrant | null = null;
     for (const t of tags) {
       const qm = t.match(QUAD_TAG_RE);
@@ -200,4 +207,31 @@ export function rewriteCheckboxInLine(
   if (m[2] !== expectedChar) return { line, conflict: true };
 
   return { line: m[1] + newChar + m[3], conflict: false };
+}
+
+// ── mutateArchive ──────────────────────────────────────────────────────────
+// Strip any quadrant tag and any existing #tm/archived (so re-archiving is
+// idempotent), then insert #tm/archived before the trailing block ID (or at
+// end of line). The line stays in the markdown; it's the parser's
+// `tm/archived` check that drops it from the matrix. Conflict-checked like
+// the other mutators: identity must match and the line must still be a
+// checkbox before we touch it. (Reviewer H1.)
+export function mutateArchive(
+  line: string | null | undefined,
+  expectedRawLine: string,
+): MutationResult {
+  if (line === undefined || line === null) return { line, conflict: true };
+  if (line !== expectedRawLine) return { line, conflict: true };
+  if (!/^\s*[-*+]\s+\[[ xX\/\-]\]\s+/.test(line)) return { line, conflict: true };
+
+  const stripped = line
+    .replace(QUAD_TAG_INLINE_RE, '')
+    .replace(ARCHIVED_TAG_INLINE_RE, '');
+
+  const m = stripped.match(BLOCK_ID_TRAILING_RE);
+  const updated = m
+    ? m[1].replace(/\s+$/, '') + ' #tm/archived' + m[2]
+    : stripped.replace(/\s+$/, '') + ' #tm/archived';
+
+  return { line: updated, conflict: false };
 }

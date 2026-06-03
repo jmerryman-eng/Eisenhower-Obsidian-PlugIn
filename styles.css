@@ -342,7 +342,7 @@
 /* ─── task card ───────────────────────────────────────────────────── */
 .task-matrix-root .task {
   display: grid;
-  grid-template-columns: 18px 1fr;
+  grid-template-columns: 18px 1fr auto;
   gap: 10px;
   padding: 9px 10px;
   background: var(--surface);
@@ -503,4 +503,48 @@
 .task-matrix-root .quad-body::-webkit-scrollbar-thumb:hover,
 .task-matrix-root .backlog-body::-webkit-scrollbar-thumb:hover {
   background: var(--border-strong);
+}
+
+/* ─── card actions (archive / delete) ─────────────────────────────── */
+.task-matrix-root .task-actions {
+  align-self: flex-start;
+  display: flex;
+  gap: 2px;
+  /* Revealed on card hover / keyboard focus so the cards stay calm. */
+  opacity: 0;
+  transition: opacity var(--t);
+}
+.task-matrix-root .task:hover .task-actions,
+.task-matrix-root .task:focus-within .task-actions { opacity: 1; }
+.task-matrix-root .task-archive,
+.task-matrix-root .task-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px; height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  box-shadow: none;
+  transition: color var(--t), background var(--t);
+}
+.task-matrix-root .task-archive svg,
+.task-matrix-root .task-delete svg { width: 15px; height: 15px; }
+.task-matrix-root .task-archive:hover { color: var(--text); background: var(--surface-2); }
+.task-matrix-root .task-delete:hover { color: var(--q1); background: color-mix(in oklab, var(--q1) 12%, transparent); }
+
+/* ─── Q4 "archive completed" header button ────────────────────────── */
+.task-matrix-root .quad header .quad-archive {
+  margin-left: 8px;
+  flex: 0 0 auto;
+}
+
+/* ─── add-task modal field ────────────────────────────────────────── */
+.task-matrix-root.modal .tm-add-input,
+.modal .tm-add-input {
+  width: 100%;
+  margin: 4px 0 14px;
 }

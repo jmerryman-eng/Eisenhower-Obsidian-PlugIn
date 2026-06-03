@@ -7,7 +7,7 @@
 // (or any external tool) can manipulate tasks via standard file edits and
 // the matrix updates automatically through vault.on('modify').
 
-import { ItemView, Notice, Plugin, TFile, WorkspaceLeaf } from 'obsidian';
+import { App, ItemView, Modal, Notice, Plugin, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
 import {
   STATUS_TO_CHAR,
   STATUS_CYCLE,
@@ -16,10 +16,13 @@ import {
   parseTasksFromText,
   rewriteQuadrantInLine,
   rewriteCheckboxInLine,
+  mutateArchive,
   Task,
   TaskStatus,
   Quadrant,
 } from './parser';
+
+const BACKLOG_PATH = 'Task Backlog.md';
 
 const VIEW_TYPE = 'task-matrix-view';
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -65,11 +68,18 @@ export default class TaskMatrixPlugin extends Plugin {
     this.registerView(VIEW_TYPE, (leaf) => new MatrixView(leaf, this));
 
     this.addRibbonIcon('layout-grid', 'Open task matrix', () => this.activateView());
+    this.addRibbonIcon('plus', 'Add task to backlog', () => this.openAddTaskModal());
 
     this.addCommand({
       id: 'open-task-matrix',
       name: 'Open task matrix',
       callback: () => this.activateView(),
+    });
+
+    this.addCommand({
+      id: 'add-task-to-backlog',
+      name: 'Add task to backlog',
+      callback: () => this.openAddTaskModal(),
     });
 
     this.addCommand({
@@ -257,6 +267,145 @@ export default class TaskMatrixPlugin extends Plugin {
     this.notify();
   }
 
+  // ─── delete ───────────────────────────────────────────────────────────
+  // Remove the task's line from its source file entirely. Conflict-checked
+  // against the parsed rawLine so a shifted/edited line is never clobbered.
+  // Offers an undo (re-insert the exact line) via the resulting Notice.
+  async deleteTask(taskId: string): Promise<void> {
+    const task = this.tasks.get(taskId);
+    if (!task) return;
+    const file = this.app.vault.getAbstractFileByPath(task.file);
+    if (!(file instanceof TFile)) return;
+
+    let conflict = false;
+    let deletedLine: string | null = null;
+    const lineIndex = task.lineNumber;
+    try {
+      await this.app.vault.process(file, (text) => {
+        const lines = text.split('\n');
+        if (lines[lineIndex] !== task.rawLine) { conflict = true; return text; }
+        deletedLine = lines[lineIndex];
+        lines.splice(lineIndex, 1);
+        return lines.join('\n');
+      });
+    } catch (err) {
+      new Notice(`TaskMatrix: failed to delete task — ${errMessage(err)}`);
+      return;
+    }
+
+    if (conflict) {
+      new Notice('TaskMatrix: file changed underneath — rescanning.');
+      await this.refreshFile(file);
+      return;
+    }
+
+    this.tasks.delete(taskId);
+    this.notify();
+
+    // Undo affordance — re-insert the removed line at its old index.
+    const notice = new Notice('', 8000);
+    notice.noticeEl.setText('TaskMatrix: task deleted. ');
+    const undoLink = notice.noticeEl.createEl('a', { text: 'Undo', href: '#' });
+    undoLink.addEventListener('click', async (e) => {
+      e.preventDefault();
+      notice.hide();
+      if (deletedLine === null) return;
+      try {
+        await this.app.vault.process(file, (text) => {
+          const lines = text.split('\n');
+          const at = Math.max(0, Math.min(lineIndex, lines.length));
+          lines.splice(at, 0, deletedLine as string);
+          return lines.join('\n');
+        });
+      } catch (err) {
+        new Notice(`TaskMatrix: undo failed — ${errMessage(err)}`);
+      }
+    });
+  }
+
+  // ─── archive ──────────────────────────────────────────────────────────
+  // Write #tm/archived onto the source line (keeping the line) so the parser
+  // drops it from the matrix. Returns true on success. Conflict-checked.
+  async archiveTask(taskId: string): Promise<boolean> {
+    const task = this.tasks.get(taskId);
+    if (!task) return false;
+    const file = this.app.vault.getAbstractFileByPath(task.file);
+    if (!(file instanceof TFile)) return false;
+
+    let conflict = false;
+    try {
+      await this.app.vault.process(file, (text) => {
+        const lines = text.split('\n');
+        const result = mutateArchive(lines[task.lineNumber], task.rawLine);
+        if (result.conflict) { conflict = true; return text; }
+        lines[task.lineNumber] = result.line as string;
+        return lines.join('\n');
+      });
+    } catch (err) {
+      new Notice(`TaskMatrix: failed to archive task — ${errMessage(err)}`);
+      return false;
+    }
+
+    if (conflict) {
+      new Notice('TaskMatrix: file changed underneath — rescanning.');
+      await this.refreshFile(file);
+      return false;
+    }
+
+    this.tasks.delete(taskId);
+    this.notify();
+    return true;
+  }
+
+  // Batch: archive every completed task in a quadrant (used by the Q4
+  // "Archive completed" button). Each archive is its own vault.process call.
+  async archiveCompletedInQuadrant(quadrant: Quadrant): Promise<number> {
+    const ids = [...this.tasks.values()]
+      .filter((t) => t.quadrant === quadrant && t.status === 'completed')
+      .map((t) => t.id);
+    let archived = 0;
+    for (const id of ids) {
+      if (await this.archiveTask(id)) archived++;
+    }
+    return archived;
+  }
+
+  // ─── creation ─────────────────────────────────────────────────────────
+  // Append a new pending task to the backlog note, creating the note if it
+  // doesn't exist. The vault.on('create'/'modify') listeners refresh the
+  // matrix; no manual rescan needed. We do not generate block IDs — the
+  // source owns `^task-…`.
+  async addTaskToBacklog(text: string): Promise<void> {
+    const cleaned = text.replace(/\r\n|\r|\n/g, ' ').trim();
+    if (!cleaned) return;
+
+    let file = this.app.vault.getAbstractFileByPath(BACKLOG_PATH);
+    if (!file) {
+      try {
+        file = await this.app.vault.create(BACKLOG_PATH, '# Task Backlog\n\n');
+      } catch (err) {
+        new Notice(`TaskMatrix: couldn't create ${BACKLOG_PATH} — ${errMessage(err)}`);
+        return;
+      }
+    }
+    if (!(file instanceof TFile)) return;
+
+    try {
+      await this.app.vault.process(file, (content) => {
+        const sep = content === '' || content.endsWith('\n') ? '' : '\n';
+        return content + sep + `- [ ] ${cleaned} #task\n`;
+      });
+    } catch (err) {
+      new Notice(`TaskMatrix: failed to add task — ${errMessage(err)}`);
+      return;
+    }
+    new Notice(`TaskMatrix: added to ${BACKLOG_PATH}.`);
+  }
+
+  openAddTaskModal(): void {
+    new AddTaskModal(this.app, (text) => this.addTaskToBacklog(text)).open();
+  }
+
   // ─── view bookkeeping ───────────────────────────────────────────────────
   registerMatrixView(view: MatrixView): void { this.views.add(view); }
   unregisterMatrixView(view: MatrixView): void { this.views.delete(view); }
@@ -362,6 +511,13 @@ class MatrixView extends ItemView {
       header.createEl('h2', { text: q.title });
       header.createEl('span', { cls: 'quad-meta', text: q.meta });
       header.createEl('span', { cls: 'quad-count', text: '0', attr: { 'data-count': q.id } });
+      if (q.id === 'q4') {
+        header.createEl('button', {
+          cls: 'btn btn-ghost btn-sm quad-archive',
+          text: 'Archive completed',
+          attr: { type: 'button', 'data-action': 'archive-completed', 'data-quadrant': 'q4' },
+        });
+      }
       article.createDiv({ cls: 'quad-body', attr: { 'data-drop': q.id } });
     }
 
@@ -410,6 +566,58 @@ class MatrixView extends ItemView {
         ? (t.status === 'cancelled' ? 'pending' : 'cancelled')
         : (STATUS_CYCLE[t.status] || 'pending');
       this.plugin.toggleStatus(id, next);
+    });
+
+    // Archive a single card (delegated).
+    this.registerDomEvent(root, 'click', (e) => {
+      const target = e.target as HTMLElement;
+      const btn = target.closest('[data-action="archive-task"]');
+      if (!btn) return;
+      e.stopPropagation();
+      const card = btn.closest('.task') as HTMLElement | null;
+      if (!card) return;
+      const id = card.dataset.id as string;
+      this.plugin.archiveTask(id);
+    });
+
+    // Delete a single card (delegated).
+    this.registerDomEvent(root, 'click', (e) => {
+      const target = e.target as HTMLElement;
+      const btn = target.closest('[data-action="delete-task"]');
+      if (!btn) return;
+      e.stopPropagation();
+      const card = btn.closest('.task') as HTMLElement | null;
+      if (!card) return;
+      const id = card.dataset.id as string;
+      this.plugin.deleteTask(id);
+    });
+
+    // Archive all completed tasks in the Delete quadrant (delegated).
+    this.registerDomEvent(root, 'click', async (e) => {
+      const target = e.target as HTMLElement;
+      const btn = target.closest('[data-action="archive-completed"]') as HTMLButtonElement | null;
+      if (!btn) return;
+      const quadrant = (btn.dataset.quadrant as Quadrant) || 'q4';
+      const count = [...this.plugin.tasks.values()]
+        .filter((t) => t.quadrant === quadrant && t.status === 'completed').length;
+      if (count === 0) {
+        new Notice('No completed tasks to archive.');
+        return;
+      }
+      new ConfirmModal(
+        this.plugin.app,
+        `Archive ${count} completed task${count === 1 ? '' : 's'}?`,
+        'Their lines stay in your vault but stop showing in the matrix. Delete the #tm/archived tag in Obsidian to bring one back.',
+        async () => {
+          btn.disabled = true;
+          try {
+            const archived = await this.plugin.archiveCompletedInQuadrant(quadrant);
+            new Notice(`Archived ${archived} task${archived === 1 ? '' : 's'}.`);
+          } finally {
+            btn.disabled = false;
+          }
+        },
+      ).open();
     });
 
     // Open source file (jumps to the task's line).
@@ -626,6 +834,30 @@ class MatrixView extends ItemView {
       meta.createEl('span', { cls: 'task-tag', text: '#' + tag });
     }
 
+    // Per-card actions: archive (keeps the line, adds #tm/archived) and
+    // delete (removes the source line). Revealed on hover/focus via CSS.
+    const actions = el.createDiv({ cls: 'task-actions' });
+    const archiveBtn = actions.createEl('button', {
+      cls: 'task-archive',
+      attr: {
+        type: 'button',
+        'data-action': 'archive-task',
+        title: 'Archive task (keeps the line, adds #tm/archived)',
+        'aria-label': 'Archive task',
+      },
+    });
+    setIcon(archiveBtn, 'archive');
+    const deleteBtn = actions.createEl('button', {
+      cls: 'task-delete',
+      attr: {
+        type: 'button',
+        'data-action': 'delete-task',
+        title: 'Delete task (removes the source line)',
+        'aria-label': 'Delete task',
+      },
+    });
+    setIcon(deleteBtn, 'x');
+
     return el;
   }
 }
@@ -675,4 +907,82 @@ function renderText(raw: string): DocumentFragment {
   }
   flush();
   return frag;
+}
+
+// ─── modals ───────────────────────────────────────────────────────────────
+// Add-task: a single text field that appends a pending task to the backlog
+// note. Commit on Enter or the Add button; Escape (Obsidian default) closes.
+class AddTaskModal extends Modal {
+  private onSubmit: (text: string) => void;
+
+  constructor(app: App, onSubmit: (text: string) => void) {
+    super(app);
+    this.onSubmit = onSubmit;
+  }
+
+  onOpen(): void {
+    const { contentEl, titleEl } = this;
+    titleEl.setText('Add task to backlog');
+
+    const input = contentEl.createEl('input', {
+      cls: 'tm-add-input',
+      attr: { type: 'text', placeholder: 'Task text…', 'aria-label': 'Task text' },
+    });
+
+    const submit = (): void => {
+      const value = input.value.trim();
+      if (!value) { input.focus(); return; }
+      this.close();
+      this.onSubmit(value);
+    };
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); submit(); }
+    });
+
+    const buttons = contentEl.createDiv({ cls: 'modal-button-container' });
+    buttons.createEl('button', { cls: 'mod-cta', text: 'Add task' })
+      .addEventListener('click', submit);
+    buttons.createEl('button', { text: 'Cancel' })
+      .addEventListener('click', () => this.close());
+
+    input.focus();
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
+  }
+}
+
+// Confirm: a titled message with a confirm/cancel pair. Used before the
+// batch "Archive completed" action.
+class ConfirmModal extends Modal {
+  private titleText: string;
+  private message: string;
+  private confirmLabel: string;
+  private onConfirm: () => void;
+
+  constructor(app: App, title: string, message: string, onConfirm: () => void, confirmLabel = 'Archive') {
+    super(app);
+    this.titleText = title;
+    this.message = message;
+    this.onConfirm = onConfirm;
+    this.confirmLabel = confirmLabel;
+  }
+
+  onOpen(): void {
+    const { contentEl, titleEl } = this;
+    titleEl.setText(this.titleText);
+    contentEl.createEl('p', { text: this.message });
+
+    const buttons = contentEl.createDiv({ cls: 'modal-button-container' });
+    buttons.createEl('button', { cls: 'mod-warning', text: this.confirmLabel })
+      .addEventListener('click', () => { this.close(); this.onConfirm(); });
+    buttons.createEl('button', { text: 'Cancel' })
+      .addEventListener('click', () => this.close());
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
+  }
 }

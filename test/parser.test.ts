@@ -11,6 +11,7 @@ import {
   parseTasksFromText,
   rewriteCheckboxInLine,
   rewriteQuadrantInLine,
+  mutateArchive,
 } from '../src/parser.ts';
 
 test('parseTasksFromText: detects a basic #task line', () => {
@@ -215,4 +216,54 @@ test('round-trip: parses #tm/qN added by external tool (Claude flow)', () => {
   const after = rewriteQuadrantInLine(before, before, 'q1').line as string;
   const tasks = parseTasksFromText('a.md', after);
   assert.equal(tasks[0].quadrant, 'q1');
+});
+
+test('parser: skips lines tagged #tm/archived', () => {
+  const text = [
+    '- [ ] visible #task',
+    '- [x] hidden #task #tm/archived',
+    '- [ ] also hidden #task #tm/archived ^task-z',
+  ].join('\n');
+  const tasks = parseTasksFromText('a.md', text);
+  assert.equal(tasks.length, 1);
+  assert.equal(tasks[0].text, 'visible #task');
+});
+
+test('mutateArchive: adds #tm/archived and strips the quadrant tag', () => {
+  const line = '- [x] done thing #task #tm/q1';
+  const r = mutateArchive(line, line);
+  assert.equal(r.conflict, false);
+  assert.equal(r.line, '- [x] done thing #task #tm/archived');
+});
+
+test('mutateArchive: inserts #tm/archived before a trailing block ID', () => {
+  const line = '- [x] done thing #task #tm/q2 ^task-abc';
+  const r = mutateArchive(line, line);
+  assert.equal(r.conflict, false);
+  assert.equal(r.line, '- [x] done thing #task #tm/archived ^task-abc');
+});
+
+test('mutateArchive: is idempotent (re-archiving keeps a single tag)', () => {
+  const line = '- [x] done #task #tm/archived';
+  const r = mutateArchive(line, line);
+  assert.equal(r.conflict, false);
+  assert.equal(r.line, '- [x] done #task #tm/archived');
+});
+
+test('mutateArchive: conflict when the line drifted (H1)', () => {
+  const r = mutateArchive('- [x] OTHER #task', '- [x] done #task');
+  assert.equal(r.conflict, true);
+});
+
+test('mutateArchive: conflict on a non-checkbox line', () => {
+  const line = 'plain prose #task';
+  const r = mutateArchive(line, line);
+  assert.equal(r.conflict, true);
+});
+
+test('round-trip: an archived line is dropped on the next parse', () => {
+  const before = '- [x] done #task #tm/q4 ^task-k';
+  const after = mutateArchive(before, before).line as string;
+  assert.equal(after, '- [x] done #task #tm/archived ^task-k');
+  assert.equal(parseTasksFromText('a.md', after).length, 0);
 });
