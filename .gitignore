@@ -1,0 +1,16 @@
+# build artifact (bundled by esbuild)
+main.js
+
+# dependencies
+node_modules/
+
+# source maps
+*.js.map
+
+# os / editor cruft
+.DS_Store
+.idea/
+.vscode/
+
+# logs
+npm-debug.log*

@@ -1,0 +1,28 @@
+{
+  "name": "task-matrix",
+  "version": "1.0.0",
+  "description": "Eisenhower-matrix view for #task lines across your Obsidian vault.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "typecheck": "tsc -noEmit -skipLibCheck",
+    "test": "node --experimental-strip-types --test test/*.test.ts"
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "eisenhower",
+    "tasks"
+  ],
+  "author": "TaskMatrix",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.20.0",
+    "obsidian": "^1.5.0",
+    "tslib": "^2.6.2",
+    "typescript": "^5.4.0"
+  }
+}
