@@ -514,7 +514,7 @@ class MatrixView extends ItemView {
       if (q.id === 'q4') {
         header.createEl('button', {
           cls: 'btn btn-ghost btn-sm quad-archive',
-          text: 'Archive completed',
+          text: 'Archive',
           attr: { type: 'button', 'data-action': 'archive-completed', 'data-quadrant': 'q4' },
         });
       }
