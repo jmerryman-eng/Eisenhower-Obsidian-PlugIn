@@ -955,27 +955,33 @@ class MatrixView extends ItemView {
 
     // Per-card actions: archive (keeps the line, adds #tm/archived) and
     // delete (removes the source line). Revealed on hover/focus via CSS.
-    const actions = el.createDiv({ cls: 'task-actions' });
-    const archiveBtn = actions.createEl('button', {
-      cls: 'task-archive',
-      attr: {
-        type: 'button',
-        'data-action': 'archive-task',
-        title: 'Archive task (keeps the line, adds #tm/archived)',
-        'aria-label': 'Archive task',
-      },
-    });
-    setIcon(archiveBtn, 'archive');
-    const deleteBtn = actions.createEl('button', {
-      cls: 'task-delete',
-      attr: {
-        type: 'button',
-        'data-action': 'delete-task',
-        title: 'Delete task (removes the source line)',
-        'aria-label': 'Delete task',
-      },
-    });
-    setIcon(deleteBtn, 'x');
+    // Only offered for backlog and the Delete (q4) quadrant — once a task is
+    // committed to Do / Schedule / Delegate (q1–q3) these are hidden, so the
+    // path to removing it is to drag it to Delete (or back to the backlog).
+    const showActions = !task.quadrant || task.quadrant === 'q4';
+    if (showActions) {
+      const actions = el.createDiv({ cls: 'task-actions' });
+      const archiveBtn = actions.createEl('button', {
+        cls: 'task-archive',
+        attr: {
+          type: 'button',
+          'data-action': 'archive-task',
+          title: 'Archive task (keeps the line, adds #tm/archived)',
+          'aria-label': 'Archive task',
+        },
+      });
+      setIcon(archiveBtn, 'archive');
+      const deleteBtn = actions.createEl('button', {
+        cls: 'task-delete',
+        attr: {
+          type: 'button',
+          'data-action': 'delete-task',
+          title: 'Delete task (removes the source line)',
+          'aria-label': 'Delete task',
+        },
+      });
+      setIcon(deleteBtn, 'x');
+    }
 
     return el;
   }
