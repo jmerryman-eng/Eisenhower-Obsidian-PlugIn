@@ -84,7 +84,6 @@ export default class TaskMatrixPlugin extends Plugin {
     this.addSettingTab(new TaskMatrixSettingTab(this.app, this));
 
     this.addRibbonIcon('layout-grid', 'Open task matrix', () => this.activateView());
-    this.addRibbonIcon('plus', 'Add task to backlog', () => this.openAddTaskModal());
 
     this.addCommand({
       id: 'open-task-matrix',
@@ -596,6 +595,11 @@ class MatrixView extends ItemView {
     const backlogTitle = backlogHead.createDiv({ cls: 'backlog-title' });
     backlogTitle.createEl('h2', { text: 'Backlog' });
     backlogTitle.createEl('span', { cls: 'quad-count', text: '0', attr: { 'data-count': 'backlog' } });
+    const addBtn = backlogTitle.createEl('button', {
+      cls: 'tm-add-task',
+      attr: { type: 'button', title: 'Add task to backlog', 'aria-label': 'Add task to backlog' },
+    });
+    setIcon(addBtn, 'plus');
     backlog.createDiv({ cls: 'backlog-body', attr: { 'data-drop': 'backlog' } });
   }
 
@@ -620,6 +624,10 @@ class MatrixView extends ItemView {
     this.registerDomEvent(root.querySelector('.tm-rescan') as HTMLElement, 'click', async () => {
       await this.plugin.scanVault();
       new Notice(`TaskMatrix: ${this.plugin.tasks.size} task${this.plugin.tasks.size === 1 ? '' : 's'} indexed.`);
+    });
+
+    this.registerDomEvent(root.querySelector('.tm-add-task') as HTMLElement, 'click', () => {
+      this.plugin.openAddTaskModal();
     });
 
     // Status cycle (delegated).

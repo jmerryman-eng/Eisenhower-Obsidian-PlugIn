@@ -29,6 +29,7 @@ A task is a markdown checkbox line tagged `#task`:
 ## Usage
 
 - Open the matrix from the ribbon (**Open task matrix**) or the command palette.
+- Add a task with the **+** button in the Backlog panel, or the **Add task to backlog** command.
 - Drag cards between quadrants and the backlog; placement writes the `#tm/qN` tag.
 - Click a card's checkbox to cycle status (Shift+click to cancel).
 - Click the file icon on a card to jump to the source line.
