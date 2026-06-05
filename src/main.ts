@@ -328,8 +328,8 @@ export default class TaskMatrixPlugin extends Plugin {
 
     // Undo affordance — re-insert the removed line at its old index.
     const notice = new Notice('', 8000);
-    notice.noticeEl.setText('TaskMatrix: task deleted. ');
-    const undoLink = notice.noticeEl.createEl('a', { text: 'Undo', href: '#' });
+    notice.messageEl.setText('TaskMatrix: task deleted. ');
+    const undoLink = notice.messageEl.createEl('a', { text: 'Undo', href: '#' });
     undoLink.addEventListener('click', async (e) => {
       e.preventDefault();
       notice.hide();
