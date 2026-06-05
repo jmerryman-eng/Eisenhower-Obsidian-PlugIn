@@ -330,20 +330,18 @@ export default class TaskMatrixPlugin extends Plugin {
     const notice = new Notice('', 8000);
     notice.messageEl.setText('TaskMatrix: task deleted. ');
     const undoLink = notice.messageEl.createEl('a', { text: 'Undo', href: '#' });
-    undoLink.addEventListener('click', async (e) => {
+    undoLink.addEventListener('click', (e) => {
       e.preventDefault();
       notice.hide();
       if (deletedLine === null) return;
-      try {
-        await this.app.vault.process(file, (text) => {
-          const lines = text.split('\n');
-          const at = Math.max(0, Math.min(lineIndex, lines.length));
-          lines.splice(at, 0, deletedLine as string);
-          return lines.join('\n');
-        });
-      } catch (err) {
+      void this.app.vault.process(file, (text) => {
+        const lines = text.split('\n');
+        const at = Math.max(0, Math.min(lineIndex, lines.length));
+        lines.splice(at, 0, deletedLine as string);
+        return lines.join('\n');
+      }).catch((err) => {
         new Notice(`TaskMatrix: undo failed — ${errMessage(err)}`);
-      }
+      });
     });
   }
 
@@ -473,7 +471,7 @@ export default class TaskMatrixPlugin extends Plugin {
   }
 
   openAddTaskModal(): void {
-    new AddTaskModal(this.app, (text) => this.addTaskToBacklog(text)).open();
+    new AddTaskModal(this.app, (text) => { void this.addTaskToBacklog(text); }).open();
   }
 
   // ─── view bookkeeping ───────────────────────────────────────────────────
@@ -687,14 +685,15 @@ class MatrixView extends ItemView {
         this.plugin.app,
         `Archive ${count} completed task${count === 1 ? '' : 's'}?`,
         'Their lines stay in your vault but stop showing in the matrix. Delete the #tm/archived tag in Obsidian to bring one back.',
-        async () => {
+        () => {
           btn.disabled = true;
-          try {
-            const archived = await this.plugin.archiveCompletedInQuadrant(quadrant);
-            new Notice(`Archived ${archived} task${archived === 1 ? '' : 's'}.`);
-          } finally {
-            btn.disabled = false;
-          }
+          void this.plugin.archiveCompletedInQuadrant(quadrant)
+            .then((archived) => {
+              new Notice(`Archived ${archived} task${archived === 1 ? '' : 's'}.`);
+            })
+            .finally(() => {
+              btn.disabled = false;
+            });
         },
       ).open();
     });
