@@ -55,7 +55,7 @@ const QUAD_DEFS: QuadDef[] = [
 // Build an SVG icon under `parent` from a list of <path d="…"> strings (or a
 // single <polyline points="…">). Avoids innerHTML for the static glyphs.
 function appendSvg(parent: Element, cls: string, build: (svg: SVGElement) => void): SVGElement {
-  const svg = document.createElementNS(SVG_NS, 'svg');
+  const svg = activeDocument.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
   if (cls) svg.setAttribute('class', cls);
   svg.setAttribute('aria-hidden', 'true');
@@ -64,7 +64,7 @@ function appendSvg(parent: Element, cls: string, build: (svg: SVGElement) => voi
   return svg;
 }
 function svgPath(svg: SVGElement, d: string): void {
-  const path = document.createElementNS(SVG_NS, 'path');
+  const path = activeDocument.createElementNS(SVG_NS, 'path');
   path.setAttribute('d', d);
   svg.appendChild(path);
 }
@@ -913,7 +913,7 @@ class MatrixView extends ItemView {
   }
 
   buildCard(task: Task): HTMLElement {
-    const el = document.createElement('div');
+    const el = activeDocument.createElement('div');
     el.className = 'task';
     el.dataset.id = task.id;
     el.dataset.status = task.status;
@@ -926,7 +926,7 @@ class MatrixView extends ItemView {
       attr: { 'aria-label': 'Cycle status (Shift+click to cancel)', 'data-action': 'cycle-status' },
     });
     appendSvg(check, '', (svg) => {
-      const poly = document.createElementNS(SVG_NS, 'polyline');
+      const poly = activeDocument.createElementNS(SVG_NS, 'polyline');
       poly.setAttribute('points', '4,12 10,18 20,6');
       svg.appendChild(poly);
     });
@@ -999,11 +999,11 @@ class MatrixView extends ItemView {
 // always emitted via textContent (no innerHTML path). [[wikilinks]] and
 // #hashtags become styled spans; everything else is a text node.
 function renderText(raw: string): DocumentFragment {
-  const frag = document.createDocumentFragment();
+  const frag = activeDocument.createDocumentFragment();
   let buf = '';
   const flush = (): void => {
     if (!buf) return;
-    frag.appendChild(document.createTextNode(buf));
+    frag.appendChild(activeDocument.createTextNode(buf));
     buf = '';
   };
   let i = 0;
@@ -1016,7 +1016,7 @@ function renderText(raw: string): DocumentFragment {
           ? (inner.split('|').pop() as string)
           : (inner.split('#')[0].split('/').pop() as string);
         flush();
-        const span = document.createElement('span');
+        const span = activeDocument.createElement('span');
         span.className = 'wikilink';
         span.textContent = display;
         frag.appendChild(span);
@@ -1028,7 +1028,7 @@ function renderText(raw: string): DocumentFragment {
       let j = i + 1;
       while (j < raw.length && /[A-Za-z0-9_\/-]/.test(raw[j])) j++;
       flush();
-      const span = document.createElement('span');
+      const span = activeDocument.createElement('span');
       span.className = 'hashtag';
       span.textContent = raw.slice(i, j);
       frag.appendChild(span);
