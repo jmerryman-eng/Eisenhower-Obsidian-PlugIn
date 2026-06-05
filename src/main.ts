@@ -1026,7 +1026,7 @@ function renderText(raw: string): DocumentFragment {
     }
     if (raw[i] === '#' && /[A-Za-z]/.test(raw[i + 1] || '')) {
       let j = i + 1;
-      while (j < raw.length && /[A-Za-z0-9_\/-]/.test(raw[j])) j++;
+      while (j < raw.length && /[A-Za-z0-9_/-]/.test(raw[j])) j++;
       flush();
       const span = activeDocument.createElement('span');
       span.className = 'hashtag';
