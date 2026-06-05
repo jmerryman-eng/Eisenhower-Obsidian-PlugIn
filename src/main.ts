@@ -86,7 +86,7 @@ export default class TaskMatrixPlugin extends Plugin {
     this.addRibbonIcon('layout-grid', 'Open task matrix', () => this.activateView());
 
     this.addCommand({
-      id: 'open-task-matrix',
+      id: 'open',
       name: 'Open task matrix',
       callback: () => this.activateView(),
     });
