@@ -42,7 +42,7 @@ export const QUAD_TAG_INLINE_RE = /\s*#tm\/q[1-4](?![A-Za-z0-9_/-])/g;
 // Same idea for the `#tm/archived` tag — lookahead-only (mobile-safe).
 export const ARCHIVED_TAG_INLINE_RE = /\s*#tm\/archived(?![A-Za-z0-9_/-])/g;
 
-const TASK_LINE_RE = /^(\s*)([-*+])\s+\[([ xX/\-])\]\s+(.+?)\s*$/;
+const TASK_LINE_RE = /^(\s*)([-*+])\s+\[([ xX/-])\]\s+(.+?)\s*$/;
 const HAS_TASK_TAG_RE = /(?:#task(?![A-Za-z0-9_-])|#task\/)/;
 const TAG_RE = /#([A-Za-z][A-Za-z0-9_/-]*)/g;
 // Obsidian accepts block IDs with letters/digits/dash/underscore, after any
@@ -180,7 +180,7 @@ export function rewriteQuadrantInLine(
   if (quadrant !== null && !QUADRANTS.includes(quadrant)) return { line, conflict: true };
   if (line !== expectedRawLine) return { line, conflict: true };
 
-  if (!/^\s*[-*+]\s+\[[ xX/\-]\]\s+/.test(line)) return { line, conflict: true };
+  if (!/^\s*[-*+]\s+\[[ xX/-]\]\s+/.test(line)) return { line, conflict: true };
   if (!HAS_TASK_TAG_RE.test(line)) return { line, conflict: true };
 
   let updated = line.replace(QUAD_TAG_INLINE_RE, '');
@@ -211,7 +211,7 @@ export function rewriteCheckboxInLine(
   if (newChar === undefined) return { line, conflict: true };
   if (line !== expectedRawLine) return { line, conflict: true };
 
-  const m = line.match(/^(\s*[-*+]\s+\[)([ xX/\-])(\].*)$/);
+  const m = line.match(/^(\s*[-*+]\s+\[)([ xX/-])(\].*)$/);
   if (!m) return { line, conflict: true };
   if (m[2] !== expectedChar) return { line, conflict: true };
 
@@ -231,7 +231,7 @@ export function mutateArchive(
 ): MutationResult {
   if (line === undefined || line === null) return { line, conflict: true };
   if (line !== expectedRawLine) return { line, conflict: true };
-  if (!/^\s*[-*+]\s+\[[ xX/\-]\]\s+/.test(line)) return { line, conflict: true };
+  if (!/^\s*[-*+]\s+\[[ xX/-]\]\s+/.test(line)) return { line, conflict: true };
 
   const stripped = line
     .replace(QUAD_TAG_INLINE_RE, '')
@@ -268,7 +268,7 @@ export function mutateTaskText(
 
   let prefix: string;
   let rest: string;
-  const checkMatch = line.match(/^(\s*[-*+]\s+\[[ xX/\-]\]\s+)([\s\S]*)$/);
+  const checkMatch = line.match(/^(\s*[-*+]\s+\[[ xX/-]\]\s+)([\s\S]*)$/);
   if (checkMatch) {
     prefix = checkMatch[1];
     rest = checkMatch[2];
