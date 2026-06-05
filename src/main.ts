@@ -634,7 +634,7 @@ class MatrixView extends ItemView {
       const target = e.target as HTMLElement;
       const btn = target.closest('[data-action="cycle-status"]');
       if (!btn) return;
-      const card = btn.closest('.task') as HTMLElement | null;
+      const card = btn.closest<HTMLElement>('.task');
       if (!card) return;
       const id = card.dataset.id as string;
       const t = this.plugin.tasks.get(id);
@@ -651,7 +651,7 @@ class MatrixView extends ItemView {
       const btn = target.closest('[data-action="archive-task"]');
       if (!btn) return;
       e.stopPropagation();
-      const card = btn.closest('.task') as HTMLElement | null;
+      const card = btn.closest<HTMLElement>('.task');
       if (!card) return;
       const id = card.dataset.id as string;
       void this.plugin.archiveTask(id);
@@ -663,7 +663,7 @@ class MatrixView extends ItemView {
       const btn = target.closest('[data-action="delete-task"]');
       if (!btn) return;
       e.stopPropagation();
-      const card = btn.closest('.task') as HTMLElement | null;
+      const card = btn.closest<HTMLElement>('.task');
       if (!card) return;
       const id = card.dataset.id as string;
       void this.plugin.deleteTask(id);
@@ -672,7 +672,7 @@ class MatrixView extends ItemView {
     // Archive all completed tasks in the Delete quadrant (delegated).
     this.registerDomEvent(root, 'click', async (e) => {
       const target = e.target as HTMLElement;
-      const btn = target.closest('[data-action="archive-completed"]') as HTMLButtonElement | null;
+      const btn = target.closest<HTMLButtonElement>('[data-action="archive-completed"]');
       if (!btn) return;
       const quadrant = (btn.dataset.quadrant as Quadrant) || 'q4';
       const count = [...this.plugin.tasks.values()]
@@ -701,7 +701,7 @@ class MatrixView extends ItemView {
     // Open source file (jumps to the task's line).
     this.registerDomEvent(root, 'click', (e) => {
       const target = e.target as HTMLElement;
-      const link = target.closest('[data-action="open-file"]') as HTMLElement | null;
+      const link = target.closest<HTMLElement>('[data-action="open-file"]');
       if (!link) return;
       e.preventDefault();
       const path = link.dataset.path as string;
@@ -716,9 +716,9 @@ class MatrixView extends ItemView {
     // Double-click a card's text to edit it inline.
     this.registerDomEvent(root, 'dblclick', (e) => {
       const target = e.target as HTMLElement;
-      const textEl = target.closest('.task-text') as HTMLElement | null;
+      const textEl = target.closest<HTMLElement>('.task-text');
       if (!textEl) return;
-      const card = textEl.closest('.task') as HTMLElement | null;
+      const card = textEl.closest<HTMLElement>('.task');
       if (!card) return;
       e.preventDefault();
       this.beginInlineEdit(card, textEl, card.dataset.id as string);
@@ -729,7 +729,7 @@ class MatrixView extends ItemView {
     // placement is a single markdown tag so order isn't tracked in v1.
     this.registerDomEvent(root, 'dragstart', (e) => {
       const target = e.target as HTMLElement;
-      const card = target.closest('.task') as HTMLElement | null;
+      const card = target.closest<HTMLElement>('.task');
       if (!card) return;
       this.draggingId = card.dataset.id as string;
       card.classList.add('is-dragging');
