@@ -2,7 +2,7 @@
   "id": "task-matrix",
   "name": "TaskMatrix",
   "version": "1.0.0",
-  "minAppVersion": "1.5.0",
+  "minAppVersion": "1.5.11",
   "description": "Eisenhower-matrix view for #task lines across your vault. Drag tasks between Do / Schedule / Delegate / Delete quadrants; status changes write back to the source markdown.",
   "author": "jmerryman-eng",
   "authorUrl": "https://github.com/jmerryman-eng",
