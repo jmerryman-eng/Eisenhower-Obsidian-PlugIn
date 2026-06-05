@@ -563,11 +563,12 @@ class MatrixView extends ItemView {
     const workspace = appEl.createEl('section', { cls: 'workspace' });
     const matrix = workspace.createDiv({ cls: 'matrix', attr: { 'aria-label': 'Eisenhower Matrix' } });
 
-    const axes = matrix.createDiv({ cls: 'matrix-axes' });
-    const axisX = axes.createDiv({ cls: 'axis-x' });
+    // Axes are direct grid children of .matrix (explicitly placed via CSS),
+    // so no wrapper / display:contents is needed.
+    const axisX = matrix.createDiv({ cls: 'axis-x' });
     axisX.createEl('span', { text: 'Urgent' });
     axisX.createEl('span', { text: 'Not Urgent' });
-    const axisY = axes.createDiv({ cls: 'axis-y' });
+    const axisY = matrix.createDiv({ cls: 'axis-y' });
     axisY.createEl('span', { text: 'Important' });
     axisY.createEl('span', { text: 'Not Important' });
 

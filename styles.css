@@ -132,7 +132,6 @@
   gap: 6px;
   min-height: 0;
 }
-.task-matrix-root .matrix-axes { display: contents; }
 .task-matrix-root .axis-x {
   grid-column: 2; grid-row: 1;
   display: grid; grid-template-columns: 1fr 1fr;
