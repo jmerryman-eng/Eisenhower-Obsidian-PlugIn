@@ -107,10 +107,10 @@ export default class TaskMatrixPlugin extends Plugin {
     });
 
     this.registerEvent(this.app.vault.on('modify', (file) => {
-      if (file instanceof TFile && file.extension === 'md') this.refreshFile(file);
+      if (file instanceof TFile && file.extension === 'md') void this.refreshFile(file);
     }));
     this.registerEvent(this.app.vault.on('create', (file) => {
-      if (file instanceof TFile && file.extension === 'md') this.refreshFile(file);
+      if (file instanceof TFile && file.extension === 'md') void this.refreshFile(file);
     }));
     this.registerEvent(this.app.vault.on('delete', (file) => {
       if (file instanceof TFile) this.removeFileTasks(file.path);
@@ -118,14 +118,14 @@ export default class TaskMatrixPlugin extends Plugin {
     this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {
       if (file instanceof TFile && file.extension === 'md') {
         this.removeFileTasks(oldPath);
-        this.refreshFile(file);
+        void this.refreshFile(file);
       }
     }));
 
     // Defer the initial scan until Obsidian has finished loading the layout.
     // Scanning a large vault during boot would block the UI; onLayoutReady
     // fires after Obsidian's core views are interactive.
-    this.app.workspace.onLayoutReady(() => { this.scanVault(); });
+    this.app.workspace.onLayoutReady(() => { void this.scanVault(); });
   }
 
   onunload(): void {
@@ -139,12 +139,12 @@ export default class TaskMatrixPlugin extends Plugin {
   async activateView(): Promise<void> {
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE);
     if (existing.length) {
-      this.app.workspace.revealLeaf(existing[0]);
+      await this.app.workspace.revealLeaf(existing[0]);
       return;
     }
     const leaf = this.app.workspace.getLeaf('tab');
     await leaf.setViewState({ type: VIEW_TYPE, active: true });
-    this.app.workspace.revealLeaf(leaf);
+    await this.app.workspace.revealLeaf(leaf);
   }
 
   // ─── scan + parse ───────────────────────────────────────────────────────
@@ -643,7 +643,7 @@ class MatrixView extends ItemView {
       const next: TaskStatus = e.shiftKey
         ? (t.status === 'cancelled' ? 'pending' : 'cancelled')
         : (STATUS_CYCLE[t.status] || 'pending');
-      this.plugin.toggleStatus(id, next);
+      void this.plugin.toggleStatus(id, next);
     });
 
     // Archive a single card (delegated).
@@ -655,7 +655,7 @@ class MatrixView extends ItemView {
       const card = btn.closest('.task') as HTMLElement | null;
       if (!card) return;
       const id = card.dataset.id as string;
-      this.plugin.archiveTask(id);
+      void this.plugin.archiveTask(id);
     });
 
     // Delete a single card (delegated).
@@ -667,7 +667,7 @@ class MatrixView extends ItemView {
       const card = btn.closest('.task') as HTMLElement | null;
       if (!card) return;
       const id = card.dataset.id as string;
-      this.plugin.deleteTask(id);
+      void this.plugin.deleteTask(id);
     });
 
     // Archive all completed tasks in the Delete quadrant (delegated).
@@ -710,7 +710,7 @@ class MatrixView extends ItemView {
       if (!(file instanceof TFile)) return;
       const leaf = this.plugin.app.workspace.getLeaf(false);
       const eState = lineStr ? { line: Number(lineStr), col: 0 } : undefined;
-      leaf.openFile(file, eState ? { eState } : undefined);
+      void leaf.openFile(file, eState ? { eState } : undefined);
     });
 
     // Double-click a card's text to edit it inline.
@@ -896,7 +896,7 @@ class MatrixView extends ItemView {
       card.draggable = true;
       const value = textarea.value;
       if (commit && value.trim() && value.trim() !== original.trim()) {
-        this.plugin.editTaskText(id, value);
+        void this.plugin.editTaskText(id, value);
         return; // re-render arrives from the write / modify event
       }
       this.render(); // cancel or no-op — rebuild the card as it was
