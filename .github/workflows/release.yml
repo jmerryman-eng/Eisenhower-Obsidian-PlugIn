@@ -1,0 +1,68 @@
+name: Release plugin
+
+# Build the plugin in CI and publish a GitHub release whenever a version tag
+# is pushed. The build is attested with GitHub artifact attestations, so users
+# can cryptographically verify the released main.js / manifest.json / styles.css
+# were built from this repository.
+#
+# Cut a release with:
+#   npm version <patch|minor|major>   # bumps manifest is manual; see below
+#   git tag 1.0.1 && git push origin 1.0.1
+# (the tag name must equal the "version" in manifest.json, with no "v" prefix).
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write       # create the release and upload assets
+  id-token: write       # OIDC token used to sign the attestation
+  attestations: write   # write the build-provenance attestation
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify tag matches manifest version
+        run: |
+          MANIFEST_VERSION="$(node -p "require('./manifest.json').version")"
+          if [ "$MANIFEST_VERSION" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match manifest version ${MANIFEST_VERSION}"
+            exit 1
+          fi
+
+      - name: Generate artifact attestations
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
+
+      - name: Create release with assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" main.js manifest.json styles.css --clobber
+          else
+            gh release create "$TAG" main.js manifest.json styles.css \
+              --title "$TAG" --notes "Release $TAG"
+          fi
