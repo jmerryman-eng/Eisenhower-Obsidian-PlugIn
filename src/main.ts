@@ -102,7 +102,7 @@ export default class TaskMatrixPlugin extends Plugin {
       name: 'Rescan vault for task lines',
       callback: async () => {
         await this.scanVault();
-        new Notice(`TaskMatrix: ${this.tasks.size} task${this.tasks.size === 1 ? '' : 's'} indexed.`);
+        new Notice(`${this.tasks.size} task${this.tasks.size === 1 ? '' : 's'} indexed.`);
       },
     });
 
@@ -230,12 +230,12 @@ export default class TaskMatrixPlugin extends Plugin {
         return lines.join('\n');
       });
     } catch (err) {
-      new Notice(`TaskMatrix: failed to update task — ${errMessage(err)}`);
+      new Notice(`Failed to update task — ${errMessage(err)}`);
       return;
     }
 
     if (conflict) {
-      new Notice('TaskMatrix: file changed underneath — rescanning.');
+      new Notice('File changed underneath — rescanning.');
       await this.refreshFile(file);
       return;
     }
@@ -274,12 +274,12 @@ export default class TaskMatrixPlugin extends Plugin {
         return lines.join('\n');
       });
     } catch (err) {
-      new Notice(`TaskMatrix: failed to update placement — ${errMessage(err)}`);
+      new Notice(`Failed to update placement — ${errMessage(err)}`);
       return;
     }
 
     if (conflict) {
-      new Notice('TaskMatrix: file changed underneath — rescanning.');
+      new Notice('File changed underneath — rescanning.');
       await this.refreshFile(file);
       return;
     }
@@ -313,12 +313,12 @@ export default class TaskMatrixPlugin extends Plugin {
         return lines.join('\n');
       });
     } catch (err) {
-      new Notice(`TaskMatrix: failed to delete task — ${errMessage(err)}`);
+      new Notice(`Failed to delete task — ${errMessage(err)}`);
       return;
     }
 
     if (conflict) {
-      new Notice('TaskMatrix: file changed underneath — rescanning.');
+      new Notice('File changed underneath — rescanning.');
       await this.refreshFile(file);
       return;
     }
@@ -328,7 +328,7 @@ export default class TaskMatrixPlugin extends Plugin {
 
     // Undo affordance — re-insert the removed line at its old index.
     const notice = new Notice('', 8000);
-    notice.messageEl.setText('TaskMatrix: task deleted. ');
+    notice.messageEl.setText('Task deleted. ');
     const undoLink = notice.messageEl.createEl('a', { text: 'Undo', href: '#' });
     undoLink.addEventListener('click', (e) => {
       e.preventDefault();
@@ -340,7 +340,7 @@ export default class TaskMatrixPlugin extends Plugin {
         lines.splice(at, 0, deletedLine as string);
         return lines.join('\n');
       }).catch((err) => {
-        new Notice(`TaskMatrix: undo failed — ${errMessage(err)}`);
+        new Notice(`Undo failed — ${errMessage(err)}`);
       });
     });
   }
@@ -364,12 +364,12 @@ export default class TaskMatrixPlugin extends Plugin {
         return lines.join('\n');
       });
     } catch (err) {
-      new Notice(`TaskMatrix: failed to archive task — ${errMessage(err)}`);
+      new Notice(`Failed to archive task — ${errMessage(err)}`);
       return false;
     }
 
     if (conflict) {
-      new Notice('TaskMatrix: file changed underneath — rescanning.');
+      new Notice('File changed underneath — rescanning.');
       await this.refreshFile(file);
       return false;
     }
@@ -416,17 +416,17 @@ export default class TaskMatrixPlugin extends Plugin {
         return lines.join('\n');
       });
     } catch (err) {
-      new Notice(`TaskMatrix: failed to edit task — ${errMessage(err)}`);
+      new Notice(`Failed to edit task — ${errMessage(err)}`);
       return;
     }
 
     if (conflict) {
-      new Notice('TaskMatrix: file changed underneath — rescanning.');
+      new Notice('File changed underneath — rescanning.');
       await this.refreshFile(file);
       return;
     }
     if (invalid) {
-      new Notice('TaskMatrix: task text cannot be empty.');
+      new Notice('Task text cannot be empty.');
       this.notify();
       return;
     }
@@ -452,7 +452,7 @@ export default class TaskMatrixPlugin extends Plugin {
       try {
         file = await this.app.vault.create(path, '# Task Backlog\n\n');
       } catch (err) {
-        new Notice(`TaskMatrix: couldn't create ${path} — ${errMessage(err)}`);
+        new Notice(`Couldn't create ${path} — ${errMessage(err)}`);
         return;
       }
     }
@@ -464,10 +464,10 @@ export default class TaskMatrixPlugin extends Plugin {
         return content + sep + `- [ ] ${cleaned} #task\n`;
       });
     } catch (err) {
-      new Notice(`TaskMatrix: failed to add task — ${errMessage(err)}`);
+      new Notice(`Failed to add task — ${errMessage(err)}`);
       return;
     }
-    new Notice(`TaskMatrix: added to ${path}.`);
+    new Notice(`Added to ${path}.`);
   }
 
   openAddTaskModal(): void {
@@ -507,7 +507,7 @@ class MatrixView extends ItemView {
   }
 
   getViewType(): string { return VIEW_TYPE; }
-  getDisplayText(): string { return 'Task Matrix'; }
+  getDisplayText(): string { return 'Task matrix'; }
   getIcon(): string { return 'layout-grid'; }
 
   async onOpen(): Promise<void> {
@@ -567,10 +567,10 @@ class MatrixView extends ItemView {
     // so no wrapper / display:contents is needed.
     const axisX = matrix.createDiv({ cls: 'axis-x' });
     axisX.createEl('span', { text: 'Urgent' });
-    axisX.createEl('span', { text: 'Not Urgent' });
+    axisX.createEl('span', { text: 'Not urgent' });
     const axisY = matrix.createDiv({ cls: 'axis-y' });
     axisY.createEl('span', { text: 'Important' });
-    axisY.createEl('span', { text: 'Not Important' });
+    axisY.createEl('span', { text: 'Not important' });
 
     const grid = matrix.createDiv({ cls: 'matrix-grid' });
     for (const q of QUAD_DEFS) {
@@ -623,7 +623,7 @@ class MatrixView extends ItemView {
 
     this.registerDomEvent(root.querySelector('.tm-rescan') as HTMLElement, 'click', async () => {
       await this.plugin.scanVault();
-      new Notice(`TaskMatrix: ${this.plugin.tasks.size} task${this.plugin.tasks.size === 1 ? '' : 's'} indexed.`);
+      new Notice(`${this.plugin.tasks.size} task${this.plugin.tasks.size === 1 ? '' : 's'} indexed.`);
     });
 
     this.registerDomEvent(root.querySelector('.tm-add-task') as HTMLElement, 'click', () => {
@@ -852,7 +852,7 @@ class MatrixView extends ItemView {
       if (this.filterStatus !== 'all' || this.searchTerm) {
         empty.textContent = 'No tasks match the current filter.';
       } else if (total === 0) {
-        empty.textContent = 'No #task lines detected. Add #task to a markdown checkbox line, then Rescan.';
+        empty.textContent = 'No #task lines detected. Add #task to a Markdown checkbox line, then rescan.';
       } else if (allPlaced) {
         empty.textContent = 'All detected tasks are placed in the matrix.';
       } else {
@@ -1136,7 +1136,7 @@ class TaskMatrixSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Task detection')
-      .setDesc('Which checkbox lines count as tasks. "Tagged" requires a #task tag; "All checkboxes" treats every checkbox line as a task.')
+      .setDesc('Which checkbox lines count as tasks. "tagged" requires a #task tag; "All checkboxes" treats every checkbox line as a task.')
       .addDropdown((dd) => dd
         .addOption('tag', 'Tagged with #task')
         .addOption('open', 'All checkbox lines')
@@ -1149,7 +1149,7 @@ class TaskMatrixSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Backlog note')
-      .setDesc('New tasks from the + button and "Add task to backlog" command are appended here. Created if it does not exist.')
+      .setDesc('New tasks from the + button and "add task to backlog" command are appended here. Created if it does not exist.')
       .addText((text) => text
         .setPlaceholder(DEFAULT_BACKLOG_PATH)
         .setValue(this.plugin.settings.backlogPath)
