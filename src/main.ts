@@ -194,7 +194,8 @@ export default class TaskMatrixPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const loaded = (await this.loadData()) as Partial<TaskMatrixSettings> | null;
+    this.settings = { ...DEFAULT_SETTINGS, ...(loaded ?? {}) };
   }
 
   async saveSettings(): Promise<void> {
